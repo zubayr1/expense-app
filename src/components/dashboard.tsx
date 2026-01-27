@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { EXPENSE_TYPES } from '../consts/expenseTypes'
-import type { ExpenseEntry, ExpenseType } from '../types/expense'
-import { readCSV, toCSV } from '../utils/fsCsv'
+import { DEFAULT_EXPENSES, getExpenseTypeDisplay } from '../consts/defaultExpenses'
+import type { ExpenseEntry, ExpenseType } from '../types/expense.ts'
+import { readCSV, toCSV } from '../utils/fsCsv.ts'
 import './Dashboard.css'
 import Header from './Header.tsx'
 
@@ -11,6 +12,7 @@ function Dashboard() {
   const [amount, setAmount] = useState<string>('') // string to avoid leading 0
   const [miscType, setMiscType] = useState('')
   const [entries, setEntries] = useState<ExpenseEntry[]>([])
+  const [loadedEntries, setLoadedEntries] = useState<ExpenseEntry[]>([]) // Existing CSV entries
   const [directoryHandle, setDirectoryHandle] =
     useState<FileSystemDirectoryHandle | null>(null)
 
@@ -30,6 +32,26 @@ function Dashboard() {
       console.log('Folder selection cancelled')
     }
   }
+
+  // ---- Load existing CSV when month or folder changes ----
+  useEffect(() => {
+    const loadExistingMonth = async () => {
+      if (!directoryHandle || !month) {
+        setLoadedEntries([])
+        return
+      }
+
+      try {
+        const fileHandle = await directoryHandle.getFileHandle(`${month}.csv`)
+        const data = await readCSV(fileHandle)
+        setLoadedEntries(data)
+      } catch {
+        setLoadedEntries([])
+      }
+    }
+
+    loadExistingMonth()
+  }, [directoryHandle, month])
 
   // ---- Add Expense ----
   const handleAddExpense = () => {
@@ -150,6 +172,14 @@ function Dashboard() {
 
     alert(`Saved ${fileName} successfully`)
     setEntries([])
+    // Reload the CSV to update warnings
+    try {
+      const updatedHandle = await directoryHandle.getFileHandle(fileName)
+      const data = await readCSV(updatedHandle)
+      setLoadedEntries(data)
+    } catch {
+      setLoadedEntries([])
+    }
   }
 
   // ---- Button disabled logic ----
@@ -158,6 +188,58 @@ function Dashboard() {
 
   const isSubmitDisabled =
     !month || !directoryHandle || entries.length === 0
+
+  // ---- Combine loaded entries with new entries for warnings ----
+  const allEntries = useMemo(() => {
+    // Create a map to aggregate amounts by type and subtype
+    const aggregated = new Map<string, ExpenseEntry>()
+
+    // Add loaded entries
+    loadedEntries.forEach(entry => {
+      const key = `${entry.type}||${entry.subtype || ''}`
+      const existing = aggregated.get(key)
+      if (existing) {
+        existing.amount += entry.amount
+      } else {
+        aggregated.set(key, { ...entry })
+      }
+    })
+
+    // Add new entries (these will be added to existing loaded ones)
+    entries.forEach(entry => {
+      const key = `${entry.type}||${entry.subtype || ''}`
+      const existing = aggregated.get(key)
+      if (existing) {
+        existing.amount += entry.amount
+      } else {
+        aggregated.set(key, { ...entry })
+      }
+    })
+
+    return Array.from(aggregated.values())
+  }, [entries, loadedEntries])
+
+  // ---- Calculate warnings for deviations from defaults ----
+  const warnings = useMemo(() => {
+    return allEntries.map((entry, idx) => {
+      const defaultAmount = DEFAULT_EXPENSES[entry.type]
+      const diff = entry.amount - defaultAmount
+      const percentDiff = ((diff / defaultAmount) * 100).toFixed(1)
+      
+      if (Math.abs(diff) < 0.01) return null // No significant difference
+      
+      return {
+        index: idx,
+        type: entry.type,
+        subtype: entry.subtype,
+        actual: entry.amount,
+        default: defaultAmount,
+        diff: diff,
+        percentDiff: percentDiff,
+        isOver: diff > 0,
+      }
+    }).filter(w => w !== null)
+  }, [allEntries])
 
   return (
     <>
@@ -170,6 +252,45 @@ function Dashboard() {
           <button className="secondary-btn" onClick={selectFolder}>
             Select Expenses Folder
           </button>
+
+          {/* WARNINGS SECTION - Show right after folder selection */}
+          {month && directoryHandle && (
+            <>
+              {warnings.length > 0 ? (
+                <div className="warnings-section">
+                  <h3>⚠️ Budget Alerts for {month}</h3>
+                  {warnings.map((w, i) => (
+                    <div key={i} className={`warning-item ${w.isOver ? 'over-budget' : 'under-budget'}`}>
+                      <div className="warning-header">
+                        <strong>{w.type}</strong> {w.subtype && <span>({w.subtype})</span>}
+                      </div>
+                      <div className="warning-details">
+                        {w.isOver ? (
+                          <>
+                            <span className="warning-amount">€{w.actual.toFixed(2)}</span> is 
+                            <span className="warning-diff"> €{w.diff.toFixed(2)} ({w.percentDiff}%) OVER</span> 
+                            the default €{w.default.toFixed(2)}
+                          </>
+                        ) : (
+                          <>
+                            <span className="warning-amount">€{w.actual.toFixed(2)}</span> is 
+                            <span className="warning-diff"> €{Math.abs(w.diff).toFixed(2)} ({Math.abs(Number(w.percentDiff))}%) UNDER</span> 
+                            the default €{w.default.toFixed(2)}
+                            <span className="can-add"> - You can add more!</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : loadedEntries.length > 0 ? (
+                <div className="success-section">
+                  <h3>✅ All expenses match defaults for {month}</h3>
+                  <p>No budget deviations detected!</p>
+                </div>
+              ) : null}
+            </>
+          )}
 
           <div className="form-grid">
             <div className="field">
@@ -189,7 +310,7 @@ function Dashboard() {
               >
                 {EXPENSE_TYPES.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {getExpenseTypeDisplay(t)}
                   </option>
                 ))}
               </select>
@@ -277,7 +398,7 @@ function Dashboard() {
               >
                 {EXPENSE_TYPES.map((t) => (
                   <option key={t} value={t}>
-                    {t}
+                    {getExpenseTypeDisplay(t)}
                   </option>
                 ))}
               </select>

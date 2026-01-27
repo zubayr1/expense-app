@@ -24,3 +24,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+Feb
+src/consts/expenseTypes.ts

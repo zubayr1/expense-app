@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { EXPENSE_TYPES } from '../consts/expenseTypes'
+import { getExpenseTypeDisplay } from '../consts/defaultExpenses'
 import type { ExpenseEntry, ExpenseType } from '../types/expense'
 import { readCSV } from '../utils/fsCsv'
 import './Expenses.css'
@@ -154,7 +155,7 @@ function Expenses() {
                   >
                     {EXPENSE_TYPES.map((t) => (
                       <option key={t} value={t}>
-                        {t}
+                        {getExpenseTypeDisplay(t)}
                       </option>
                     ))}
                   </select>
