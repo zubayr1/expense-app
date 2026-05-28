@@ -1,6 +1,6 @@
 import { EXPENSE_TYPES } from '../consts/expenseTypes'
 
-export type ExpenseType = typeof EXPENSE_TYPES[number]
+export type ExpenseType = keyof typeof EXPENSE_TYPES
 
 export interface ExpenseEntry {
   type: ExpenseType

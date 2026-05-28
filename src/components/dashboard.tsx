@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect } from 'react'
-import { EXPENSE_TYPES } from '../consts/expenseTypes'
+import { useEffect, useMemo, useState } from 'react'
 import { DEFAULT_EXPENSES, getExpenseTypeDisplay } from '../consts/defaultExpenses'
+import { EXPENSE_TYPES } from '../consts/expenseTypes'
 import type { ExpenseEntry, ExpenseType } from '../types/expense.ts'
 import { readCSV, toCSV } from '../utils/fsCsv.ts'
 import './Dashboard.css'
@@ -8,7 +8,7 @@ import Header from './Header.tsx'
 
 function Dashboard() {
   const [month, setMonth] = useState('')
-  const [type, setType] = useState<ExpenseType>('rent')
+  const [type, setType] = useState<ExpenseType>('Rent')
   const [amount, setAmount] = useState<string>('') // string to avoid leading 0
   const [miscType, setMiscType] = useState('')
   const [entries, setEntries] = useState<ExpenseEntry[]>([])
@@ -19,7 +19,7 @@ function Dashboard() {
   // --- Modal state for editing ---
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editIndex, setEditIndex] = useState<number | null>(null)
-  const [editType, setEditType] = useState<ExpenseType>('rent')
+  const [editType, setEditType] = useState<ExpenseType>('Rent')
   const [editAmount, setEditAmount] = useState<string>('')
   const [editMiscType, setEditMiscType] = useState('')
 
@@ -225,9 +225,9 @@ function Dashboard() {
       const defaultAmount = DEFAULT_EXPENSES[entry.type]
       const diff = entry.amount - defaultAmount
       const percentDiff = ((diff / defaultAmount) * 100).toFixed(1)
-      
+
       if (Math.abs(diff) < 0.01) return null // No significant difference
-      
+
       return {
         index: idx,
         type: entry.type,
@@ -267,14 +267,14 @@ function Dashboard() {
                       <div className="warning-details">
                         {w.isOver ? (
                           <>
-                            <span className="warning-amount">€{w.actual.toFixed(2)}</span> is 
-                            <span className="warning-diff"> €{w.diff.toFixed(2)} ({w.percentDiff}%) OVER</span> 
+                            <span className="warning-amount">€{w.actual.toFixed(2)}</span> is
+                            <span className="warning-diff"> €{w.diff.toFixed(2)} ({w.percentDiff}%) OVER</span>
                             the default €{w.default.toFixed(2)}
                           </>
                         ) : (
                           <>
-                            <span className="warning-amount">€{w.actual.toFixed(2)}</span> is 
-                            <span className="warning-diff"> €{Math.abs(w.diff).toFixed(2)} ({Math.abs(Number(w.percentDiff))}%) UNDER</span> 
+                            <span className="warning-amount">€{w.actual.toFixed(2)}</span> is
+                            <span className="warning-diff"> €{Math.abs(w.diff).toFixed(2)} ({Math.abs(Number(w.percentDiff))}%) UNDER</span>
                             the default €{w.default.toFixed(2)}
                             <span className="can-add"> - You can add more!</span>
                           </>
@@ -308,9 +308,9 @@ function Dashboard() {
                 value={type}
                 onChange={(e) => setType(e.target.value as ExpenseType)}
               >
-                {EXPENSE_TYPES.map((t) => (
+                {Object.keys(EXPENSE_TYPES).map((t) => (
                   <option key={t} value={t}>
-                    {getExpenseTypeDisplay(t)}
+                    {getExpenseTypeDisplay(t as ExpenseType)}
                   </option>
                 ))}
               </select>
@@ -396,9 +396,9 @@ function Dashboard() {
                 value={editType}
                 onChange={(e) => setEditType(e.target.value as ExpenseType)}
               >
-                {EXPENSE_TYPES.map((t) => (
+                {Object.keys(EXPENSE_TYPES).map((t) => (
                   <option key={t} value={t}>
-                    {getExpenseTypeDisplay(t)}
+                    {getExpenseTypeDisplay(t as ExpenseType)}
                   </option>
                 ))}
               </select>

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { EXPENSE_TYPES } from '../consts/expenseTypes'
-import { getExpenseTypeDisplay } from '../consts/defaultExpenses'
 import type { ExpenseEntry, ExpenseType } from '../types/expense'
 import { readCSV } from '../utils/fsCsv'
 import './Expenses.css'
@@ -13,8 +12,11 @@ function Expenses() {
   const [entries, setEntries] = useState<ExpenseEntry[]>([])
   const [rangeStart, setRangeStart] = useState('')
   const [rangeEnd, setRangeEnd] = useState('')
-  const [selectedType, setSelectedType] = useState<ExpenseType>('rent')
+  const [selectedType, setSelectedType] = useState<ExpenseType>('Rent')
   const [totalForType, setTotalForType] = useState<number | null>(null)
+  const [monthlyBreakdown, setMonthlyBreakdown] = useState<
+    { month: string; amount: number }[]
+  >([])
 
   // ---- Select Folder ----
   const selectFolder = async () => {
@@ -47,6 +49,7 @@ function Expenses() {
     const start = new Date(rangeStart)
     const end = new Date(rangeEnd)
     let total = 0
+    const breakdown: { month: string; amount: number }[] = []
 
     // loop over months from start to end inclusive
     let current = new Date(start.getFullYear(), start.getMonth(), 1)
@@ -54,10 +57,11 @@ function Expenses() {
 
     while (current <= endInclusive) {
       const monthStr = current.toISOString().slice(0, 7) // YYYY-MM
+      let monthTotal = 0
       try {
         const fileHandle = await directoryHandle.getFileHandle(`${monthStr}.csv`)
         const data: ExpenseEntry[] = await readCSV(fileHandle)
-        const monthTotal = data
+        monthTotal = data
           .filter((e) => e.type === selectedType)
           .reduce((sum, e) => sum + e.amount, 0)
         total += monthTotal
@@ -65,11 +69,14 @@ function Expenses() {
         // file missing, skip
       }
 
+      breakdown.push({ month: monthStr, amount: monthTotal })
+
       // next month
       current.setMonth(current.getMonth() + 1)
     }
 
     setTotalForType(total)
+    setMonthlyBreakdown(breakdown)
   }
 
   return (
@@ -153,9 +160,10 @@ function Expenses() {
                     value={selectedType}
                     onChange={(e) => setSelectedType(e.target.value as ExpenseType)}
                   >
-                    {EXPENSE_TYPES.map((t) => (
+                    {Object.entries(EXPENSE_TYPES).map(([t, config]) => (
                       <option key={t} value={t}>
-                        {getExpenseTypeDisplay(t)}
+                        {t}
+                        {config.canBeBoth ? ' (expense or savings)' : ''}
                       </option>
                     ))}
                   </select>
@@ -164,10 +172,34 @@ function Expenses() {
               </div>
 
               {totalForType !== null && (
-                <h3>
-                  Total {selectedType} from {rangeStart} to {rangeEnd} : €
-                  {totalForType.toFixed(2)}
-                </h3>
+                <>
+                  <h3>
+                    Total {selectedType} from {rangeStart} to {rangeEnd} : €
+                    {totalForType.toFixed(2)}
+                  </h3>
+                  {monthlyBreakdown.length > 0 && (
+                    <table className="expense-table">
+                      <thead>
+                        <tr>
+                          <th>Month</th>
+                          <th>
+                            {EXPENSE_TYPES[selectedType]?.canBeBoth
+                              ? 'Saving / Expense (€)'
+                              : 'Expense (€)'}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {monthlyBreakdown.map((m) => (
+                          <tr key={m.month}>
+                            <td>{m.month}</td>
+                            <td>{m.amount.toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </>
               )}
             </div>
           </div>
